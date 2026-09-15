@@ -1,6 +1,8 @@
 # Phoenix
 
-Phoenix is an autonomous trading system built incrementally from one codebase: a FastAPI (Python 3.11) backend in `/backend`, a React + TypeScript frontend (placeholder), and everything orchestrated with Docker Compose from `/infra`. The broker bridge uses the native MetaTrader 5 Python library connected directly to a locally running MT5 desktop terminal on Windows (no MetaApi cloud subscription). Market data flows: **MT5 terminal → BrokerClient → MarketDataEngine → Postgres (`candles` table) + Redis (new-candle event stream)**. A Risk Engine gates every future trade with explicit, never-defaulted limits and a kill switch. Phases built: 0 (repo/infra), 1 (MT5 connectivity), 2 (market data ingestion + storage), 3 (risk engine, 59 unit tests passing).
+Phoenix is an autonomous trading system built incrementally from one codebase: a FastAPI (Python 3.11) backend in `/backend`, a React + TypeScript frontend (placeholder), and everything orchestrated with Docker Compose from `/infra`. The broker bridge uses the native MetaTrader 5 Python library connected directly to a locally running MT5 desktop terminal on Windows (no MetaApi cloud subscription).
+
+Live pipeline: **MT5 terminal → BrokerClient → MarketDataEngine → Postgres (`candles`) + Redis event stream → DecisionEngine → strategy (MA crossover) → RiskEngine → (dry-run log | real market order)**, with every outcome audited in the `decisions` table. Phases built: 0 (repo/infra), 1 (MT5 connectivity), 2 (market data ingestion + storage), 3 (risk engine), 4 (strategy + decision loop) — 75 unit tests passing.
 
 ## How to run
 
@@ -32,13 +34,19 @@ Make sure the MT5 desktop terminal is installed, logged in, and kept running. Ve
 python backend\scripts\test_broker_connection.py
 ```
 
-Then ingest live candles into Postgres and publish to the Redis stream (run from `/backend`):
+Ingest live candles (writes to Postgres + publishes to Redis stream):
 
 ```powershell
 python scripts\run_market_data_engine.py
 ```
 
-Stop with Ctrl+C. Postgres/Redis must be up (the docker compose stack above) for the engine to persist.
+Run the decision engine — the strategy+trading loop (Ctrl+C to stop):
+
+```powershell
+python scripts\run_decision_engine.py
+```
+
+`STRATEGY_DRY_RUN` defaults to `true` (safe). In dry-run the engine logs every trade it **would** make without sending real orders. Set `STRATEGY_DRY_RUN=false` in `.env` only when ready to trade live.
 
 ### Tests (from `/backend`)
 
@@ -55,7 +63,10 @@ From `/frontend`: `npm install` then `npm run dev`.
 
 - `backend/app/broker/` — native MT5 `BrokerClient` (accounts, prices, candles, positions, market orders) + timeframe map.
 - `backend/app/market_data/` — `MarketDataEngine` poll loop + Postgres upsert storage + Redis stream publish.
+- `backend/app/strategy/` — `Strategy` ABC + `MovingAverageCrossover` (SMA golden/death cross).
+- `backend/app/decision/` — `DecisionEngine` — the full loop: Redis stream → strategy → RiskEngine → broker; every outcome persisted.
 - `backend/app/risk/` — `RiskEngine`: mandatory risk limits, position sizing, daily-loss halt, kill switch.
-- `backend/scripts/` — `test_broker_connection.py`, `run_market_data_engine.py`.
-- `backend/migrations/` — Alembic migrations (schema: `candles` with a unique `(symbol, timeframe, timestamp)`).
+- `backend/app/models.py` — SQLAlchemy models: `Candle`, `Decision` (audit log), `EngineState` (day-start equity tracker).
+- `backend/scripts/` — `test_broker_connection.py`, `run_market_data_engine.py`, `run_decision_engine.py`.
+- `backend/migrations/` — Alembic migrations (0001: `candles`, 0002: `decisions` + `engine_state`).
 - `infra/docker-compose.yml` — backend + postgres + redis on one network `phoenix-net`.

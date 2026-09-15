@@ -28,6 +28,20 @@ TIMEFRAME_MAP: dict[str, int] = {
 VALID_TIMEFRAMES: tuple[str, ...] = tuple(TIMEFRAME_MAP.keys())
 
 
+def canonical_timeframe(timeframe: str) -> str:
+    """Validate a timeframe name and return its canonical uppercase string.
+
+    Works on any platform (does not need the MT5 package): useful when the
+    string itself is what matters (storage, stream events, decision engine).
+    """
+    name = str(timeframe).strip().upper()
+    if name not in TIMEFRAME_MAP:
+        raise ValueError(
+            f"Unknown timeframe {timeframe!r}. Valid values: {', '.join(VALID_TIMEFRAMES)}"
+        )
+    return name
+
+
 def validate_timeframe(timeframe: str) -> int:
     """Validate an MT5 timeframe name and return its constant.
 

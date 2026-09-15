@@ -33,3 +33,21 @@ RISK_MAX_PER_TRADE_PCT = os.getenv("RISK_MAX_PER_TRADE_PCT")
 RISK_MAX_DAILY_LOSS_PCT = os.getenv("RISK_MAX_DAILY_LOSS_PCT")
 RISK_MAX_CONCURRENT_POSITIONS = os.getenv("RISK_MAX_CONCURRENT_POSITIONS")
 RISK_KILL_SWITCH_PATH = os.getenv("RISK_KILL_SWITCH_PATH", "")
+
+# --- Strategy / Decision engine (Phase 4) ---
+# Moving-average crossover parameters. The engine has a safe default:
+# STRATEGY_DRY_RUN defaults to true unless explicitly set to false.
+STRATEGY_FAST_PERIOD = int(os.getenv("STRATEGY_FAST_PERIOD", "10"))
+STRATEGY_SLOW_PERIOD = int(os.getenv("STRATEGY_SLOW_PERIOD", "30"))
+STRATEGY_STOP_LOSS_PIPS = float(os.getenv("STRATEGY_STOP_LOSS_PIPS", "50"))
+STRATEGY_TAKE_PROFIT_PIPS = float(os.getenv("STRATEGY_TAKE_PROFIT_PIPS", "100"))
+# Pip value of the traded symbol (0.0001 for 5-digit FX pairs like EURUSD).
+STRATEGY_PIP_SIZE = float(os.getenv("STRATEGY_PIP_SIZE", "0.0001"))
+# How many recent candles to load from Postgres for each evaluation.
+STRATEGY_LOOKBACK = int(os.getenv("STRATEGY_LOOKBACK", "200"))
+STRATEGY_TIMEFRAME = os.getenv("STRATEGY_TIMEFRAME", "H1")
+STRATEGY_DRY_RUN = os.getenv("STRATEGY_DRY_RUN", "true").strip().lower() not in (
+    "0",
+    "false",
+    "no",
+)
